@@ -1,7 +1,9 @@
 jest.unmock('lodash')
 jest.unmock('../../../ducks/utils/list')
 
+import _ from 'lodash'
 import reduce, * as list from '../../../ducks/utils/list'
+
 
 describe('list reduce', () => {
 

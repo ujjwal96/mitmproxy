@@ -488,10 +488,77 @@ class Http2SingleStreamLayer(httpbase._HttpTransmissionLayer, basethread.BaseThr
     @detect_zombie_stream
     def read_request_body(self, request):
         self.request_data_finished.wait()
-        data = []
         while self.request_data_queue.qsize() > 0:
-            data.append(self.request_data_queue.get())
-        return data
+            yield self.request_data_queue.get()
+
+    @detect_zombie_stream
+    def send_request_headers(self, request):
+        if self.pushed:
+            # nothing to do here
+            return
+
+        while True:
+            self.raise_zombie()
+            self.connections[self.server_conn].lock.acquire()
+
+            max_streams = self.connections[self.server_conn].remote_settings.max_concurrent_streams
+            if self.connections[self.server_conn].open_outbound_streams + 1 >= max_streams:
+                # wait until we get a free slot for a new outgoing stream
+                self.connections[self.server_conn].lock.release()
+                time.sleep(0.1)
+                continue
+
+            # keep the lock
+            break
+
+        # We must not assign a stream id if we are already a zombie.
+        self.raise_zombie()
+
+        self.server_stream_id = self.connections[self.server_conn].get_next_available_stream_id()
+        self.server_to_client_stream_ids[self.server_stream_id] = self.client_stream_id
+
+        headers = request.headers.copy()
+        headers.insert(0, ":path", request.path)
+        headers.insert(0, ":method", request.method)
+        headers.insert(0, ":scheme", request.scheme)
+
+        priority_exclusive = None
+        priority_depends_on = None
+        priority_weight = None
+        if self.handled_priority_event:
+            # only send priority information if they actually came with the original HeadersFrame
+            # and not if they got updated before/after with a PriorityFrame
+            if not self.config.options.http2_priority:
+                self.log("HTTP/2 PRIORITY information in HEADERS frame surpressed. Use --http2-priority to enable forwarding.", "debug")
+            else:
+                priority_exclusive = self.priority_exclusive
+                priority_depends_on = self._map_depends_on_stream_id(self.server_stream_id, self.priority_depends_on)
+                priority_weight = self.priority_weight
+
+        try:
+            self.connections[self.server_conn].safe_send_headers(
+                self.raise_zombie,
+                self.server_stream_id,
+                headers,
+                end_stream=self.no_body,
+                priority_exclusive=priority_exclusive,
+                priority_depends_on=priority_depends_on,
+                priority_weight=priority_weight,
+            )
+        except Exception as e:  # pragma: no cover
+            raise e
+        finally:
+            self.raise_zombie()
+            self.connections[self.server_conn].lock.release()
+
+    @detect_zombie_stream
+    def send_request_body(self, request, chunks):
+        if not self.no_body:
+            self.connections[self.server_conn].safe_send_body(
+                self.raise_zombie,
+                self.server_stream_id,
+                chunks
+            )
 
     @detect_zombie_stream
     def send_request(self, message):

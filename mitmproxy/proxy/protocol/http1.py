@@ -29,8 +29,8 @@ class Http1Layer(httpbase._HttpTransmissionLayer):
 
     def send_request_body(self, request, chunks):
         for chunk in http1.assemble_body(request.headers, chunks):
-            self.client_conn.wfile.write(chunk)
-            self.client_conn.wfile.flush()
+            self.server_conn.wfile.write(chunk)
+            self.server_conn.wfile.flush()
 
     def send_request(self, request):
         self.server_conn.wfile.write(http1.assemble_request(request))

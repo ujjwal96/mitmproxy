@@ -487,9 +487,20 @@ class Http2SingleStreamLayer(httpbase._HttpTransmissionLayer, basethread.BaseThr
 
     @detect_zombie_stream
     def read_request_body(self, request):
-        self.request_data_finished.wait()
-        while self.request_data_queue.qsize() > 0:
-            yield self.request_data_queue.get()
+        if not request.stream:
+            self.request_data_finished.wait()
+
+        while True:
+            try:
+                yield self.request_data_queue.get(timeout=0.1)
+            except queue.Empty:  # pragma: no cover
+                pass
+            if self.request_data_finished.is_set():
+                self.raise_zombie()
+                while self.request_data_queue.qsize() > 0:
+                    yield self.request_data_queue.get()
+                break
+            self.raise_zombie()
 
     @detect_zombie_stream
     def send_request_headers(self, request):

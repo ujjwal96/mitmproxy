@@ -83,7 +83,7 @@ class TestHeadContentLength(tservers.HTTPProxyTest):
         assert resp.headers["Content-Length"] == "42"
 
 
-class TestStreaming(tservers.HTTPProxyTest):
+class TestRequestStreaming(tservers.HTTPProxyTest):
 
     @pytest.mark.parametrize('streaming', [True, False])
     def test_streaming(self, streaming):
@@ -96,6 +96,7 @@ class TestStreaming(tservers.HTTPProxyTest):
                 f.response.stream = streaming
 
         def assert_write(self, v):
+            print(len(v))
             if streaming:
                 assert len(v) <= 4096
             return self.o.write(v)

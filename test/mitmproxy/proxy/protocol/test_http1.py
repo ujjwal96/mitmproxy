@@ -1,7 +1,6 @@
 from unittest import mock
 import pytest
 
-from mitmproxy import exceptions
 from mitmproxy.test import tflow
 from mitmproxy.net.http import http1
 from mitmproxy.net.tcp import TCPClient
@@ -83,7 +82,7 @@ class TestHeadContentLength(tservers.HTTPProxyTest):
         assert resp.headers["Content-Length"] == "42"
 
 
-class TestRequestStreaming(tservers.HTTPProxyTest):
+class TestStreaming(tservers.HTTPProxyTest):
 
     @pytest.mark.parametrize('streaming', [True, False])
     def test_streaming(self, streaming):
@@ -96,7 +95,6 @@ class TestRequestStreaming(tservers.HTTPProxyTest):
                 f.response.stream = streaming
 
         def assert_write(self, v):
-            print(len(v))
             if streaming:
                 assert len(v) <= 4096
             return self.o.write(v)
@@ -109,9 +107,5 @@ class TestRequestStreaming(tservers.HTTPProxyTest):
                 r = p.request("post:'%s/p/200:b@10000'" % self.server.urlbase)
                 assert len(r.content) == 10000
 
-                if streaming:
-                    with pytest.raises(exceptions.HttpReadDisconnect):  # as the assertion in assert_write fails
-                        # request with 10000 bytes
-                        p.request("post:'%s/p/200':b@10000" % self.server.urlbase)
-                else:
-                    assert p.request("post:'%s/p/200':b@10000" % self.server.urlbase)
+                # request with 10000 bytes
+                assert p.request("post:'%s/p/200':b@10000" % self.server.urlbase)

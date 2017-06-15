@@ -564,6 +564,10 @@ class Http2SingleStreamLayer(httpbase._HttpTransmissionLayer, basethread.BaseThr
 
     @detect_zombie_stream
     def send_request_body(self, request, chunks):
+        if self.pushed:
+            # nothing to do here
+            return
+
         if not self.no_body:
             self.connections[self.server_conn].safe_send_body(
                 self.raise_zombie,

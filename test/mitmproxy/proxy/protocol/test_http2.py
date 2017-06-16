@@ -924,3 +924,61 @@ class TestRequestStreaming(_Http2Test):
             assert connection_terminated_event.additional_data == body
         else:
             assert connection_terminated_event is None
+
+
+@requires_alpn
+class TestResponseStreaming(_Http2Test):
+
+    @classmethod
+    def handle_server_event(cls, event, h2_conn, rfile, wfile):
+        if isinstance(event, h2.events.ConnectionTerminated):
+            return False
+        elif isinstance(event, h2.events.RequestReceived):
+            data = generators.RandomGenerator("bytes", 100)[:]
+            h2_conn.send_headers(event.stream_id, [
+                (':status', '200'),
+                ('content-length', '100')
+            ])
+            h2_conn.send_data(event.stream_id, data)
+            wfile.write(h2_conn.data_to_send())
+            wfile.flush()
+        return True
+
+    @pytest.mark.parametrize('streaming', [True, False])
+    def test_response_streaming(self, streaming):
+        class Stream:
+            def responseheaders(self, f):
+                f.response.stream = streaming
+
+        self.master.addons.add(Stream())
+        h2_conn = self.setup_connection()
+        self._send_request(
+            self.client.wfile,
+            h2_conn,
+            headers=[
+                (':authority', "127.0.0.1:{}".format(self.server.server.address[1])),
+                (':method', 'GET'),
+                (':scheme', 'https'),
+                (':path', '/'),
+
+            ]
+        )
+        done = False
+        self.client.rfile.o.settimeout(2)
+        data = None
+        while not done:
+            try:
+                raw = b''.join(http2.read_raw_frame(self.client.rfile))
+                events = h2_conn.receive_data(raw)
+
+                for event in events:
+                    if isinstance(event, h2.events.DataReceived):
+                        data = event.data
+                        done = True
+            except:
+                break
+
+        if streaming:
+            assert data
+        else:
+            assert data is None

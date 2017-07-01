@@ -155,7 +155,13 @@ class TestSimple(_WebSocketTest):
         wfile.write(bytes(frame))
         wfile.flush()
 
-    def test_simple(self):
+    @pytest.mark.parametrize('streaming', [True, False])
+    def test_simple(self, streaming):
+        class Stream:
+            def websocket_start(self, f):
+                f.stream = streaming
+
+        self.master.addons.add(Stream())
         self.setup_connection()
 
         frame = websockets.Frame.from_file(self.client.rfile)

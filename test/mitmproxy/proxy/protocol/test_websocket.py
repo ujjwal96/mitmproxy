@@ -352,12 +352,14 @@ class TestStreaming(_WebSocketTest):
         self.master.addons.add(Stream())
         self.setup_connection()
 
+        frame = None
         if not streaming:
             with pytest.raises(exceptions.TcpDisconnect):  # Reader.safe_read get nothing as result
                 frame = websockets.Frame.from_file(self.client.rfile)
+            assert frame is None
+
         else:
             frame = websockets.Frame.from_file(self.client.rfile)
 
-        if streaming:
             assert frame
-            assert self.master.state.flows[1].messages == []
+            assert self.master.state.flows[1].messages == []  # Message not appended as the final frame isn't received

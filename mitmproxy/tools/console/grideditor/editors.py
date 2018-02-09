@@ -121,12 +121,12 @@ class CookieAttributeEditor(base.GridEditor):
 
 
 class SetCookieEditor(base.FocusEditor):
-    title = "Edit SetCookie Header"
-    columns = [
-        col_text.Column("Name"),
-        col_text.Column("Value"),
-        col_subgrid.Column("Attributes", CookieAttributeEditor),
-    ]
+    #title = "Edit SetCookie Header"
+    #columns = [
+     #   col_text.Column("Name"),
+    #     col_text.Column("Value"),
+    #     col_subgrid.Column("Attributes", CookieAttributeEditor),
+    # ]
 
     def data_in(self, data):
         flattened = []
